@@ -288,39 +288,20 @@ class Sync(Base):
                 continue
             _rows.append(row)
 
+        # We now just dump this in the redis queue and let it process in the same manner
+        # as the "realtime" changes.  If it's a one-time load, we don't care about what's next. This
+        # has the advantage of letting the redis sorted-sets reduce a lot of the duplicate work.
         for i, row in enumerate(_rows):
-
             logger.debug(f"txid: {row.xid}")
             logger.debug(f"data: {row.data}")
-            # TODO: optimize this so we are not parsing the same row twice
             try:
                 payload = self.parse_logical_slot(row.data)
+                self.redis.push(payload, row.xid)
             except Exception as e:
                 logger.exception(
                     f"Error parsing row: {e}\nRow data: {row.data}"
                 )
                 raise
-            payloads.append(payload)
-
-            j: int = i + 1
-            if j < len(_rows):
-                try:
-                    payload2 = self.parse_logical_slot(_rows[j].data)
-                except Exception as e:
-                    logger.exception(
-                        f"Error parsing row: {e}\nRow data: {_rows[j].data}"
-                    )
-                    raise
-
-                if (
-                    payload["tg_op"] != payload2["tg_op"]
-                    or payload["table"] != payload2["table"]
-                ):
-                    self.sync(self._payloads(payloads))
-                    payloads: list = []
-            elif j == len(_rows):
-                self.sync(self._payloads(payloads))
-                payloads: list = []
 
         if rows:
             self.logical_slot_get_changes(
