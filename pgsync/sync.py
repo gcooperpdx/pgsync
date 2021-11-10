@@ -245,7 +245,10 @@ class Sync(Base):
         return f"{PRIMARY_KEY_DELIMITER}".join(map(str, primary_keys))
 
     def logical_slot_changes(
-        self, txmin: Optional[int] = None, txmax: Optional[int] = None
+        self,
+        txmin: Optional[int] = None,
+        txmax: Optional[int] = None,
+        upto_nchanges: Optional[int] = None,
     ) -> None:
         """
         Process changes from the db logical replication logs.
@@ -274,7 +277,7 @@ class Sync(Base):
             self.__name,
             txmin=txmin,
             txmax=txmax,
-            upto_nchanges=None,
+            upto_nchanges=upto_nchanges,
         )
 
         rows: list = rows or []
@@ -296,7 +299,8 @@ class Sync(Base):
             logger.debug(f"data: {row.data}")
             try:
                 payload = self.parse_logical_slot(row.data)
-                self.redis.push(payload, row.xid)
+                # self.redis.push(payload, row.xid)
+                self.redis.push(payload)
             except Exception as e:
                 logger.exception(
                     f"Error parsing row: {e}\nRow data: {row.data}"
@@ -904,48 +908,51 @@ class Sync(Base):
 
     @threaded
     def poll_db(self) -> None:
-        """
-        Producer which polls Postgres continuously.
+        # """
+        # Producer which polls Postgres continuously.
 
-        Receive a notification message from the channel we are listening on
-        """
-        conn = self.engine.connect().connection
-        conn.set_isolation_level(
-            psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT
-        )
-        cursor = conn.cursor()
-        channel: str = self.database
-        cursor.execute(f'LISTEN "{channel}"')
-        logger.debug(f'Listening for notifications on channel "{channel}"')
+        # Receive a notification message from the channel we are listening on
+        # """
+        # conn = self.engine.connect().connection
+        # conn.set_isolation_level(
+        #     psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT
+        # )
+        # cursor = conn.cursor()
+        # channel: str = self.database
+        # cursor.execute(f'LISTEN "{channel}"')
+        # logger.debug(f'Listening for notifications on channel "{channel}"')
 
-        i: int = 0
+        # i: int = 0
         while True:
-            # NB: consider reducing POLL_TIMEOUT to increase throughout
-            if select.select([conn], [], [], POLL_TIMEOUT) == ([], [], []):
-                if i % 10 == 0:
-                    sys.stdout.write(
-                        f"Syncing {channel} "
-                        f"Db: [{self.count['db']:,}] => "
-                        f"Redis: [{self.count['redis']:,}] => "
-                        f"Elastic: [{self.count['elastic']:,}] ...\n"
-                    )
-                    sys.stdout.flush()
-                i += 1
-                continue
 
-            try:
-                conn.poll()
-            except psycopg2.OperationalError as e:
-                logger.fatal(f"OperationalError: {e}")
-                os._exit(-1)
+            logical_slot_changes(upto_nchanges=1000)
 
-            while conn.notifies:
-                notification: AnyStr = conn.notifies.pop(0)
-                payload = json.loads(notification.payload)
-                self.redis.push(payload)
-                logger.debug(f"on_notify: {payload}")
-                self.count["db"] += 1
-            i = 0
+            # # NB: consider reducing POLL_TIMEOUT to increase throughout
+            # if select.select([conn], [], [], POLL_TIMEOUT) == ([], [], []):
+            #     if i % 10 == 0:
+            #         sys.stdout.write(
+            #             f"Syncing {channel} "
+            #             f"Db: [{self.count['db']:,}] => "
+            #             f"Redis: [{self.count['redis']:,}] => "
+            #             f"Elastic: [{self.count['elastic']:,}] ...\n"
+            #         )
+            #         sys.stdout.flush()
+            #     i += 1
+            #     continue
+
+            # try:
+            #     conn.poll()
+            # except psycopg2.OperationalError as e:
+            #     logger.fatal(f"OperationalError: {e}")
+            #     os._exit(-1)
+
+            # while conn.notifies:
+            #     notification: AnyStr = conn.notifies.pop(0)
+            #     payload = json.loads(notification.payload)
+            #     self.redis.push(payload)
+            #     logger.debug(f"on_notify: {payload}")
+            #     self.count["db"] += 1
+            # i = 0
 
     def on_publish(self, payloads: list) -> None:
         """
