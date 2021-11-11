@@ -51,7 +51,7 @@ class RedisQueue(object):
         if necessary until an item is available.
         """
         if block:
-            item = self.__db.bzpopmin(self.key)
+            item = self.__db.bzpopmin(self.key, timeout=timeout)
         else:
             item = self.__db.zpopmin(self.key)
 
