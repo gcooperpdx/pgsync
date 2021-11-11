@@ -1,7 +1,6 @@
 """PGSync RedisQueue."""
 import json
 import logging
-import time
 
 from redis import Redis
 from redis.exceptions import ConnectionError
@@ -34,7 +33,7 @@ class RedisQueue(object):
 
     def qsize(self):
         """Return the approximate size of the queue."""
-        return self.__db.zcount(self.key,'-inf','+inf')
+        return self.__db.zcount(self.key, '-inf', '+inf')
 
     def empty(self):
         """Return True if the queue is empty, False otherwise."""
@@ -43,8 +42,7 @@ class RedisQueue(object):
     def push(self, item, txn_id):
         """Push item into the queue."""
         payload = json.dumps(item)
-        self.__db.zadd(self.key, {payload:txn_id}, nx=True)
-
+        self.__db.zadd(self.key, {payload: txn_id}, nx=True)
 
     def pop(self, block=True, timeout=None):
         """Remove and return an item from the queue.
@@ -60,7 +58,7 @@ class RedisQueue(object):
         if item:
             payload = json.loads(item[1])
             score = item[2]
-            return (score,payload)
+            return score, payload
         else:
             return None
 
@@ -68,7 +66,7 @@ class RedisQueue(object):
         """Remove and return multiple items from the queue."""
         chunk_size = chunk_size or REDIS_CHUNK_SIZE
         items = []
-        while self.empty() == False:
+        while not self.empty():
             if len(items) > chunk_size:
                 break
 
@@ -80,8 +78,7 @@ class RedisQueue(object):
         """Push multiple items onto the queue.
         Takes an array of tuples. First element = txn_id, second = payload"""
         for item in items:
-            self.push(item[1],item[0])
-        
+            self.push(item[1], item[0])
 
     def pop_nowait(self):
         """Equivalent to pop(False)."""
