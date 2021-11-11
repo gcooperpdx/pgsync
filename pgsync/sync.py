@@ -214,7 +214,7 @@ class Sync(Base):
                     user_defined_fkey_tables[node.table] |= set(columns)
             if tables:
                 self.create_view(schema, tables, user_defined_fkey_tables)
-                self.create_triggers(schema, tables=tables)
+                # self.create_triggers(schema, tables=tables)
         self.create_replication_slot(self.__name)
 
     def teardown(self, drop_view: bool = True) -> None:
@@ -231,7 +231,6 @@ class Sync(Base):
             for node in traverse_breadth_first(root):
                 tables |= set(node.relationship.through_tables)
                 tables |= set([node.table])
-            self.drop_triggers(schema=schema, tables=tables)
             if drop_view:
                 self.drop_view(schema=schema)
         self.drop_replication_slot(self.__name)
