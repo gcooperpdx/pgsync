@@ -295,6 +295,7 @@ class Sync(Base):
             # TODO: optimize this so we are not parsing the same row twice
             try:
                 payload = self.parse_logical_slot(row.data)
+                self.redis.push(payload, row.xid)
             except Exception as e:
                 logger.exception(
                     f"Error parsing row: {e}\nRow data: {row.data}"
@@ -914,11 +915,11 @@ class Sync(Base):
     def poll_redis(self) -> None:
         """Consumer which polls Redis continuously."""
         while True:
-            payloads: dict = self.redis.bulk_pop()
-            if payloads:
+            payload_tuples = self.redis.bulk_pop()
+            if payload_tuples:
+                txn_ids, payloads = zip(*payload_tuples)
                 logger.debug(f"poll_redis: {payloads}")
-                self.count["redis"] += len(payloads)
-                self.on_publish(payloads)
+                self.on_publish(payloads, txn_ids)
             time.sleep(REDIS_POLL_INTERVAL)
 
     @threaded
@@ -966,7 +967,7 @@ class Sync(Base):
                 self.count["db"] += 1
             i = 0
 
-    def on_publish(self, payloads: list) -> None:
+    def on_publish(self, payloads: list, txn_ids) -> None:
         """
         Redis publish event handler.
 
@@ -1009,10 +1010,11 @@ class Sync(Base):
 
         self.count["elastic"] += len(payloads)
 
-        txids: Set = set(map(lambda x: x["xmin"], payloads))
+        txids = set(txn_ids)
         # for truncate, tg_op txids is None so skip setting the checkpoint
         if txids != set([None]):
-            self.checkpoint: int = min(min(txids), self.txid_current) - 1
+            txmin = min(min(txids), self.txid_current) - 1
+            self.checkpoint = int(txmin)
 
     def pull(self) -> None:
         """Pull data from db."""

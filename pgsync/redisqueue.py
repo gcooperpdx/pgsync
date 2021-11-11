@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class RedisQueue(object):
     """Simple Queue with Redis Backend."""
 
-    def __init__(self, name: str, namespace: str = "queue", **kwargs):
+    def __init__(self, name, namespace="queue", **kwargs):
         """The default connection parameters are:
 
         host = 'localhost', port = 6379, db = 0
@@ -34,29 +34,34 @@ class RedisQueue(object):
 
     def qsize(self) -> int:
         """Return the approximate size of the queue."""
-        return self.__db.llen(self.key)
+        return self.__db.zcount(self.key, '-inf', '+inf')
 
     def empty(self) -> bool:
         """Return True if the queue is empty, False otherwise."""
         return self.qsize() == 0
 
-    def push(self, item) -> None:
+    def push(self, item, txn_id) -> None:
         """Push item into the queue."""
-        self.__db.rpush(self.key, json.dumps(item))
+        payload = json.dumps(item)
+        self.__db.zadd(self.key, {payload: txn_id}, nx=True)
 
-    def pop(self, block: bool = True, timeout: int = None) -> dict:
+    def pop(self, block=True, timeout=None):
         """Remove and return an item from the queue.
 
         If optional args block is true and timeout is None (the default), block
         if necessary until an item is available.
         """
         if block:
-            item = self.__db.blpop(self.key, timeout=timeout)
+            item = self.__db.bzpopmin(self.key, timeout=timeout)
         else:
-            item = self.__db.lpop(self.key)
+            item = self.__db.zpopmin(self.key)
+
         if item:
-            item = item[1]
-        return json.loads(item)
+            payload = json.loads(item[1])
+            score = item[2]
+            return score, payload
+        else:
+            return None
 
     def bulk_pop(self, chunk_size: Optional[int] = None) -> List[dict]:
         """Remove and return multiple items from the queue."""
@@ -69,26 +74,22 @@ class RedisQueue(object):
         return list(map(lambda x: json.loads(x), items[0]))
 
     def bulk_push(self, items: List) -> None:
-        """Push multiple items onto the queue."""
+        """Push multiple items onto the queue.
+        Takes an array of tuples. First element = txn_id, second = payload
+        """
         self.__db.rpush(self.key, *map(json.dumps, items))
 
     def pop_nowait(self):
         """Equivalent to pop(False)."""
         return self.pop(False)
 
-    def _delete(self) -> None:
+    def _delete(self):
         logger.info(f"Deleting redis key: {self.key}")
         self.__db.delete(self.key)
 
 
-def redis_engine(
-    scheme: Optional[str] = None,
-    host: Optional[str] = None,
-    password: Optional[str] = None,
-    port: Optional[int] = None,
-    db: Optional[str] = None,
-):
-    url: str = get_redis_url(
+def redis_engine(scheme=None, host=None, password=None, port=None, db=None):
+    url = get_redis_url(
         scheme=scheme, host=host, password=password, port=port, db=db
     )
     try:
