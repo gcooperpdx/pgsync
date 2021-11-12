@@ -1,7 +1,7 @@
 """PGSync RedisQueue."""
 import json
 import logging
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from redis import Redis
 from redis.exceptions import ConnectionError
@@ -63,17 +63,10 @@ class RedisQueue(object):
         else:
             return None
 
-    def bulk_pop(self, chunk_size: Optional[int] = None) -> List[dict]:
+    def bulk_pop(self, chunk_size: Optional[int] = None) -> List[Tuple[float, dict]]:
         """Remove and return multiple items from the queue."""
         chunk_size = chunk_size or REDIS_CHUNK_SIZE
-        items = []
-        while not self.empty():
-            if len(items) > chunk_size:
-                break
-
-            # For now just use pop. I think there's a better, bulk way to do this in redis
-            items.append(self.pop())
-        return items
+        return [(score, json.loads(payload)) for payload, score in self.__db.zpopmin(self.key, chunk_size)]
 
     def bulk_push(self, items: List) -> None:
         """
