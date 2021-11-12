@@ -45,7 +45,7 @@ class RedisQueue(object):
         payload = json.dumps(item)
         self.__db.zadd(self.key, {payload: txn_id}, nx=True)
 
-    def pop(self, block: bool = True, timeout: int = None):
+    def pop(self, block: bool = True, timeout: int = None) -> Optional[int, dict]:
         """Remove and return an item from the queue.
 
         If optional args block is true and timeout is None (the default), block
@@ -76,11 +76,11 @@ class RedisQueue(object):
         for (txn_id, payload) in items:
             self.push(payload, txn_id)
 
-    def pop_nowait(self):
+    def pop_nowait(self) -> Optional[int, dict]:
         """Equivalent to pop(False)."""
         return self.pop(False)
 
-    def _delete(self):
+    def _delete(self) -> None:
         logger.info(f"Deleting redis key: {self.key}")
         self.__db.delete(self.key)
 
