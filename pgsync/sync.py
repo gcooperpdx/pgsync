@@ -231,7 +231,7 @@ class Sync(Base):
             for node in traverse_breadth_first(root):
                 tables |= set(node.relationship.through_tables)
                 tables |= set([node.table])
-            self.drop_triggers(schema=schema, tables=tables)
+            # self.drop_triggers(schema=schema, tables=tables)
             if drop_view:
                 self.drop_view(schema=schema)
         self.drop_replication_slot(self.__name)

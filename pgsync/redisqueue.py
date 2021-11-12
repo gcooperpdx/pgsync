@@ -45,7 +45,7 @@ class RedisQueue(object):
         payload = json.dumps(item)
         self.__db.zadd(self.key, {payload: txn_id}, nx=True)
 
-    def pop(self, block=True, timeout=None):
+    def pop(self, block: bool = True, timeout: int = None):
         """Remove and return an item from the queue.
 
         If optional args block is true and timeout is None (the default), block
@@ -65,19 +65,23 @@ class RedisQueue(object):
 
     def bulk_pop(self, chunk_size: Optional[int] = None) -> List[dict]:
         """Remove and return multiple items from the queue."""
-        chunk_size: int = chunk_size or REDIS_CHUNK_SIZE
-        pipeline = self.__db.pipeline()
-        pipeline.lrange(self.key, 0, chunk_size - 1)
-        pipeline.ltrim(self.key, chunk_size, -1)
-        items: List[List[bytes], bool] = pipeline.execute()
-        logger.info(f"bulk_pop nsize: {len(items[0])}")
-        return list(map(lambda x: json.loads(x), items[0]))
+        chunk_size = chunk_size or REDIS_CHUNK_SIZE
+        items = []
+        while not self.empty():
+            if len(items) > chunk_size:
+                break
+
+            # For now just use pop. I think there's a better, bulk way to do this in redis
+            items.append(self.pop())
+        return items
 
     def bulk_push(self, items: List) -> None:
-        """Push multiple items onto the queue.
+        """
+        Push multiple items onto the queue.
         Takes an array of tuples. First element = txn_id, second = payload
         """
-        self.__db.rpush(self.key, *map(json.dumps, items))
+        for (txn_id, payload) in items:
+            self.push(payload, txn_id)
 
     def pop_nowait(self):
         """Equivalent to pop(False)."""
