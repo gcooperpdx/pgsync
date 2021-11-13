@@ -4,7 +4,6 @@ import json
 from pgsync.redisqueue import RedisQueue
 from pgsync.utils import get_redis_url
 
-
 @pytest.mark.usefixtures("table_creator")
 class TestRedisQueue(object):
     """Redis Queue tests."""

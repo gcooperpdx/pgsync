@@ -231,7 +231,6 @@ class Sync(Base):
             for node in traverse_breadth_first(root):
                 tables |= set(node.relationship.through_tables)
                 tables |= set([node.table])
-            # self.drop_triggers(schema=schema, tables=tables)
             if drop_view:
                 self.drop_view(schema=schema)
         self.drop_replication_slot(self.__name)
@@ -245,7 +244,10 @@ class Sync(Base):
         return f"{PRIMARY_KEY_DELIMITER}".join(map(str, primary_keys))
 
     def logical_slot_changes(
-        self, txmin: Optional[int] = None, txmax: Optional[int] = None
+        self,
+        txmin: Optional[int] = None,
+        txmax: Optional[int] = None,
+        upto_nchanges: Optional[int] = None,
     ) -> None:
         """
         Process changes from the db logical replication logs.
@@ -274,7 +276,7 @@ class Sync(Base):
             self.__name,
             txmin=txmin,
             txmax=txmax,
-            upto_nchanges=None,
+            upto_nchanges=upto_nchanges,
         )
 
         rows: list = rows or []
@@ -288,11 +290,12 @@ class Sync(Base):
                 continue
             _rows.append(row)
 
+        # We now just dump this in the redis queue and let it process in the same manner
+        # as the "realtime" changes.  If it's a one-time load, we don't care about what's next. This
+        # has the advantage of letting the redis sorted-sets reduce a lot of the duplicate work.
         for i, row in enumerate(_rows):
-
             logger.debug(f"txid: {row.xid}")
             logger.debug(f"data: {row.data}")
-            # TODO: optimize this so we are not parsing the same row twice
             try:
                 payload = self.parse_logical_slot(row.data)
                 self.redis.push(payload, row.xid)
@@ -301,27 +304,6 @@ class Sync(Base):
                     f"Error parsing row: {e}\nRow data: {row.data}"
                 )
                 raise
-            payloads.append(payload)
-
-            j: int = i + 1
-            if j < len(_rows):
-                try:
-                    payload2 = self.parse_logical_slot(_rows[j].data)
-                except Exception as e:
-                    logger.exception(
-                        f"Error parsing row: {e}\nRow data: {_rows[j].data}"
-                    )
-                    raise
-
-                if (
-                    payload["tg_op"] != payload2["tg_op"]
-                    or payload["table"] != payload2["table"]
-                ):
-                    self.sync(self._payloads(payloads))
-                    payloads: list = []
-            elif j == len(_rows):
-                self.sync(self._payloads(payloads))
-                payloads: list = []
 
         if rows:
             self.logical_slot_get_changes(
@@ -924,48 +906,51 @@ class Sync(Base):
 
     @threaded
     def poll_db(self) -> None:
-        """
-        Producer which polls Postgres continuously.
+        # """
+        # Producer which polls Postgres continuously.
 
-        Receive a notification message from the channel we are listening on
-        """
-        conn = self.engine.connect().connection
-        conn.set_isolation_level(
-            psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT
-        )
-        cursor = conn.cursor()
-        channel: str = self.database
-        cursor.execute(f'LISTEN "{channel}"')
-        logger.debug(f'Listening for notifications on channel "{channel}"')
+        # Receive a notification message from the channel we are listening on
+        # """
+        # conn = self.engine.connect().connection
+        # conn.set_isolation_level(
+        #     psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT
+        # )
+        # cursor = conn.cursor()
+        # channel: str = self.database
+        # cursor.execute(f'LISTEN "{channel}"')
+        # logger.debug(f'Listening for notifications on channel "{channel}"')
 
-        i: int = 0
+        # i: int = 0
         while True:
-            # NB: consider reducing POLL_TIMEOUT to increase throughout
-            if select.select([conn], [], [], POLL_TIMEOUT) == ([], [], []):
-                if i % 10 == 0:
-                    sys.stdout.write(
-                        f"Syncing {channel} "
-                        f"Db: [{self.count['db']:,}] => "
-                        f"Redis: [{self.count['redis']:,}] => "
-                        f"Elastic: [{self.count['elastic']:,}] ...\n"
-                    )
-                    sys.stdout.flush()
-                i += 1
-                continue
 
-            try:
-                conn.poll()
-            except psycopg2.OperationalError as e:
-                logger.fatal(f"OperationalError: {e}")
-                os._exit(-1)
+            logical_slot_changes(upto_nchanges=1000)
 
-            while conn.notifies:
-                notification: AnyStr = conn.notifies.pop(0)
-                payload = json.loads(notification.payload)
-                self.redis.push(payload)
-                logger.debug(f"on_notify: {payload}")
-                self.count["db"] += 1
-            i = 0
+            # # NB: consider reducing POLL_TIMEOUT to increase throughout
+            # if select.select([conn], [], [], POLL_TIMEOUT) == ([], [], []):
+            #     if i % 10 == 0:
+            #         sys.stdout.write(
+            #             f"Syncing {channel} "
+            #             f"Db: [{self.count['db']:,}] => "
+            #             f"Redis: [{self.count['redis']:,}] => "
+            #             f"Elastic: [{self.count['elastic']:,}] ...\n"
+            #         )
+            #         sys.stdout.flush()
+            #     i += 1
+            #     continue
+
+            # try:
+            #     conn.poll()
+            # except psycopg2.OperationalError as e:
+            #     logger.fatal(f"OperationalError: {e}")
+            #     os._exit(-1)
+
+            # while conn.notifies:
+            #     notification: AnyStr = conn.notifies.pop(0)
+            #     payload = json.loads(notification.payload)
+            #     self.redis.push(payload)
+            #     logger.debug(f"on_notify: {payload}")
+            #     self.count["db"] += 1
+            # i = 0
 
     def on_publish(self, payloads: list, txn_ids) -> None:
         """

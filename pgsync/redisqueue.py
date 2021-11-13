@@ -20,8 +20,8 @@ class RedisQueue(object):
 
         host = 'localhost', port = 6379, db = 0
         """
-        url: str = get_redis_url(**kwargs)
-        self.key: str = f"{namespace}:{name}"
+        url = get_redis_url(**kwargs)
+        self.key = f"{namespace}:{name}"
         try:
             self.__db = Redis.from_url(
                 url,
@@ -32,11 +32,11 @@ class RedisQueue(object):
             logger.exception(f"Redis server is not running: {e}")
             raise
 
-    def qsize(self) -> int:
+    def qsize(self):
         """Return the approximate size of the queue."""
         return self.__db.zcount(self.key, '-inf', '+inf')
 
-    def empty(self) -> bool:
+    def empty(self):
         """Return True if the queue is empty, False otherwise."""
         return self.qsize() == 0
 
@@ -80,7 +80,7 @@ class RedisQueue(object):
         """Equivalent to pop(False)."""
         return self.pop(False)
 
-    def _delete(self) -> None:
+    def _delete(self):
         logger.info(f"Deleting redis key: {self.key}")
         self.__db.delete(self.key)
 
