@@ -1,6 +1,7 @@
 """PGSync RedisQueue."""
 import json
 import logging
+from typing import List, Optional, Tuple
 
 from redis import Redis
 from redis.exceptions import ConnectionError
@@ -39,12 +40,12 @@ class RedisQueue(object):
         """Return True if the queue is empty, False otherwise."""
         return self.qsize() == 0
 
-    def push(self, item, txn_id):
+    def push(self, item, txn_id) -> None:
         """Push item into the queue."""
         payload = json.dumps(item)
         self.__db.zadd(self.key, {payload: txn_id}, nx=True)
 
-    def pop(self, block=True, timeout=None):
+    def pop(self, block: bool = True, timeout: int = None) -> Optional[int, dict]:
         """Remove and return an item from the queue.
 
         If optional args block is true and timeout is None (the default), block
@@ -62,25 +63,20 @@ class RedisQueue(object):
         else:
             return None
 
-    def bulk_pop(self, chunk_size=None):
+    def bulk_pop(self, chunk_size: Optional[int] = None) -> List[Tuple[float, dict]]:
         """Remove and return multiple items from the queue."""
         chunk_size = chunk_size or REDIS_CHUNK_SIZE
-        items = []
-        while not self.empty():
-            if len(items) > chunk_size:
-                break
+        return [(score, json.loads(payload)) for payload, score in self.__db.zpopmin(self.key, chunk_size)]
 
-            # For now just use pop. I think there's a better, bulk way to do this in redis
-            items.append(self.pop())
-        return items
+    def bulk_push(self, items: List) -> None:
+        """
+        Push multiple items onto the queue.
+        Takes an array of tuples. First element = txn_id, second = payload
+        """
+        for (txn_id, payload) in items:
+            self.push(payload, txn_id)
 
-    def bulk_push(self, items):
-        """Push multiple items onto the queue.
-        Takes an array of tuples. First element = txn_id, second = payload"""
-        for item in items:
-            self.push(item[1], item[0])
-
-    def pop_nowait(self):
+    def pop_nowait(self) -> Optional[int, dict]:
         """Equivalent to pop(False)."""
         return self.pop(False)
 
