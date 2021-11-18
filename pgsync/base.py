@@ -74,12 +74,8 @@ class Base(object):
 
     def pg_settings(self, column: str) -> Optional[str]:
         try:
-            return self.fetchone(
-                sa.select([sa.column("setting")])
-                    .select_from(sa.text("pg_settings"))
-                    .where(sa.column("name") == column),
-                label="pg_settings",
-            )[0]
+            return self.fetchone(sa.select([sa.column("setting")]).select_from(sa.text("pg_settings")).where(
+                sa.column("name") == column), label="pg_settings")[0]
         except (TypeError, IndexError):
             return None
 
