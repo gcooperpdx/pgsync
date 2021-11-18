@@ -74,8 +74,12 @@ class Base(object):
 
     def pg_settings(self, column: str) -> Optional[str]:
         try:
-            return self.fetchone(sa.select([sa.column("setting")]).select_from(sa.text("pg_settings")).where(
-                sa.column("name") == column), label="pg_settings")[0]
+            return self.fetchone(
+                sa.select([sa.column("setting")])
+                .select_from(sa.text("pg_settings"))
+                .where(sa.column("name") == column),
+                label="pg_settings",
+            )[0]
         except (TypeError, IndexError):
             return None
 
@@ -92,8 +96,8 @@ class Base(object):
             return (
                 conn.execute(
                     sa.select([sa.column("usename")])
-                        .select_from(sa.text("pg_user"))
-                        .where(
+                    .select_from(sa.text("pg_user"))
+                    .where(
                         sa.and_(
                             *[
                                 sa.column("usename") == username,
@@ -106,8 +110,8 @@ class Base(object):
                             ]
                         )
                     )
-                        .with_only_columns([sa.func.COUNT()])
-                        .order_by(None)
+                    .with_only_columns([sa.func.COUNT()])
+                    .order_by(None)
                 ).scalar()
                 > 0
             )
@@ -246,8 +250,8 @@ class Base(object):
         """
         return self.fetchall(
             sa.select(["*"])
-                .select_from(sa.text("PG_REPLICATION_SLOTS"))
-                .where(
+            .select_from(sa.text("PG_REPLICATION_SLOTS"))
+            .where(
                 sa.and_(
                     *[
                         sa.column("slot_name") == slot_name,
@@ -416,23 +420,23 @@ class Base(object):
                     ),
                 ]
             )
-                .join(
+            .join(
                 pg_attribute,
                 pg_attribute.c.attrelid == pg_index.c.indrelid,
             )
-                .join(
+            .join(
                 pg_class,
                 pg_class.c.oid == pg_index.c.indexrelid,
             )
-                .join(
+            .join(
                 alias,
                 alias.c.oid == pg_index.c.indrelid,
             )
-                .join(
+            .join(
                 pg_namespace,
                 pg_namespace.c.oid == pg_class.c.relnamespace,
             )
-                .where(
+            .where(
                 *[
                     pg_namespace.c.nspname.notin_(["pg_catalog", "pg_toast"]),
                     pg_index.c.indisprimary,
@@ -451,7 +455,7 @@ class Base(object):
                     pg_attribute.c.attnum == sa.any_(pg_index.c.indkey),
                 ]
             )
-                .group_by(pg_index.c.indrelid)
+            .group_by(pg_index.c.indrelid)
         )
 
     def _foreign_keys(self, schema: str, tables: List[str]):
@@ -482,7 +486,7 @@ class Base(object):
                     ).label("foreign_keys"),
                 ]
             )
-                .join(
+            .join(
                 key_column_usage,
                 sa.and_(
                     key_column_usage.c.constraint_name
@@ -492,7 +496,7 @@ class Base(object):
                     key_column_usage.c.table_schema == schema,
                 ),
             )
-                .join(
+            .join(
                 constraint_column_usage,
                 sa.and_(
                     constraint_column_usage.c.constraint_name
@@ -501,13 +505,13 @@ class Base(object):
                     == table_constraints.c.table_schema,
                 ),
             )
-                .where(
+            .where(
                 *[
                     table_constraints.c.table_name.in_(tables),
                     table_constraints.c.constraint_type == "FOREIGN KEY",
                 ]
             )
-                .group_by(table_constraints.c.table_name)
+            .group_by(table_constraints.c.table_name)
         )
 
     def create_view(self, schema, tables, user_defined_fkey_tables):
@@ -597,7 +601,7 @@ class Base(object):
                 sa.column("primary_keys"),
                 sa.column("foreign_keys"),
             )
-                .data(
+            .data(
                 [
                     (
                         table_name,
@@ -611,7 +615,7 @@ class Base(object):
                     for table_name, fields in rows.items()
                 ]
             )
-                .alias("t")
+            .alias("t")
         )
 
         logger.debug(f"Creating view: {schema}.{MATERIALIZED_VIEW}")
@@ -808,13 +812,13 @@ class Base(object):
             i = suffix.index("old-key:")
             if i > -1:
                 j = suffix.index("new-tuple:")
-                s = suffix[i + len("old-key:"): j]
+                s = suffix[i + len("old-key:") : j]
                 for key, value in _parse_logical_slot(s):
                     payload["old"][key] = value
 
             i = suffix.index("new-tuple:")
             if i > -1:
-                s = suffix[i + len("new-tuple:"):]
+                s = suffix[i + len("new-tuple:") :]
                 for key, value in _parse_logical_slot(s):
                     payload["new"][key] = value
         else:

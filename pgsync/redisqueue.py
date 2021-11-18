@@ -34,7 +34,7 @@ class RedisQueue(object):
 
     def qsize(self) -> int:
         """Return the approximate size of the queue."""
-        return self.__db.zcount(self.key, '-inf', '+inf')
+        return self.__db.zcount(self.key, "-inf", "+inf")
 
     def empty(self) -> bool:
         """Return True if the queue is empty, False otherwise."""
@@ -45,7 +45,9 @@ class RedisQueue(object):
         payload = json.dumps(item)
         self.__db.zadd(self.key, {payload: txn_id}, nx=True)
 
-    def pop(self, block: bool = True, timeout: int = None) -> Optional[int, dict]:
+    def pop(
+        self, block: bool = True, timeout: int = None
+    ) -> Optional[int, dict]:
         """Remove and return an item from the queue.
 
         If optional args block is true and timeout is None (the default), block
@@ -63,10 +65,15 @@ class RedisQueue(object):
         else:
             return None
 
-    def bulk_pop(self, chunk_size: Optional[int] = None) -> List[Tuple[float, dict]]:
+    def bulk_pop(
+        self, chunk_size: Optional[int] = None
+    ) -> List[Tuple[float, dict]]:
         """Remove and return multiple items from the queue."""
         chunk_size = chunk_size or REDIS_CHUNK_SIZE
-        return [(score, json.loads(payload)) for payload, score in self.__db.zpopmin(self.key, chunk_size)]
+        return [
+            (score, json.loads(payload))
+            for payload, score in self.__db.zpopmin(self.key, chunk_size)
+        ]
 
     def bulk_push(self, items: List) -> None:
         """
