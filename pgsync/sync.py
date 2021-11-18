@@ -4,18 +4,15 @@
 import json
 import logging
 import os
-import pprint
 import re
-import select
 import sys
 import time
 import uuid
 from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import AnyStr, Generator, List, Optional, Set
+from typing import Generator, List, Optional, Set
 
 import click
-import psycopg2
 import sqlalchemy as sa
 from sqlalchemy.sql import Values
 
@@ -50,7 +47,6 @@ from .querybuilder import QueryBuilder
 from .redisqueue import RedisQueue
 from .settings import (
     CHECKPOINT_PATH,
-    POLL_TIMEOUT,
     REDIS_POLL_INTERVAL,
     REPLICATION_SLOT_CLEANUP_INTERVAL,
 )
@@ -104,7 +100,6 @@ class Sync(Base):
 
     def validate(self, repl_slots: Optional[bool] = True) -> None:
         """Perform all validation right away."""
-
         # ensure v2 compatible schema
         if not isinstance(self.nodes, dict):
             raise SchemaError(
@@ -214,12 +209,10 @@ class Sync(Base):
                     user_defined_fkey_tables[node.table] |= set(columns)
             if tables:
                 self.create_view(schema, tables, user_defined_fkey_tables)
-                # self.create_triggers(schema, tables=tables)
         self.create_replication_slot(self.__name)
 
     def teardown(self, drop_view: bool = True) -> None:
         """Drop the database triggers and replication slot."""
-
         try:
             os.unlink(self._checkpoint_file)
         except OSError:
@@ -280,7 +273,6 @@ class Sync(Base):
         )
 
         rows: list = rows or []
-        payloads: list = []
         _rows: list = []
 
         for row in rows:
@@ -842,10 +834,10 @@ class Sync(Base):
                     row[META][extra["table"]][extra["column"]].append(0)
 
                 if self.verbose:
-                    print(f"{(i+1)})")
-                    print(f"Pkeys: {primary_keys}")
-                    pprint.pprint(row)
-                    print("-" * 10)
+                    sys.stdout.write(f"{(i+1)})")
+                    sys.stdout.write(f"Pkeys: {primary_keys}")
+                    sys.stdout.write(row)
+                    sys.stdout.write("-" * 10)
 
                 doc: dict = {
                     "_id": self.get_doc_id(primary_keys),
@@ -868,9 +860,7 @@ class Sync(Base):
                 yield doc
 
     def sync(self, docs: Generator) -> None:
-        """
-        Pull sync data from generator to Elasticsearch.
-        """
+        """Pull sync data from generator to Elasticsearch."""
         try:
             self.es.bulk(self.index, docs)
         except Exception as e:
@@ -906,51 +896,9 @@ class Sync(Base):
 
     @threaded
     def poll_db(self) -> None:
-        # """
-        # Producer which polls Postgres continuously.
-
-        # Receive a notification message from the channel we are listening on
-        # """
-        # conn = self.engine.connect().connection
-        # conn.set_isolation_level(
-        #     psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT
-        # )
-        # cursor = conn.cursor()
-        # channel: str = self.database
-        # cursor.execute(f'LISTEN "{channel}"')
-        # logger.debug(f'Listening for notifications on channel "{channel}"')
-
-        # i: int = 0
+        """Producer which polls Postgres continuously."""
         while True:
-
-            logical_slot_changes(upto_nchanges=1000)
-
-            # # NB: consider reducing POLL_TIMEOUT to increase throughout
-            # if select.select([conn], [], [], POLL_TIMEOUT) == ([], [], []):
-            #     if i % 10 == 0:
-            #         sys.stdout.write(
-            #             f"Syncing {channel} "
-            #             f"Db: [{self.count['db']:,}] => "
-            #             f"Redis: [{self.count['redis']:,}] => "
-            #             f"Elastic: [{self.count['elastic']:,}] ...\n"
-            #         )
-            #         sys.stdout.flush()
-            #     i += 1
-            #     continue
-
-            # try:
-            #     conn.poll()
-            # except psycopg2.OperationalError as e:
-            #     logger.fatal(f"OperationalError: {e}")
-            #     os._exit(-1)
-
-            # while conn.notifies:
-            #     notification: AnyStr = conn.notifies.pop(0)
-            #     payload = json.loads(notification.payload)
-            #     self.redis.push(payload)
-            #     logger.debug(f"on_notify: {payload}")
-            #     self.count["db"] += 1
-            # i = 0
+            self.logical_slot_changes(upto_nchanges=1000)
 
     def on_publish(self, payloads: list, txn_ids) -> None:
         """
@@ -1109,9 +1057,7 @@ def main(
     verbose,
     version,
 ):
-    """
-    main application syncer
-    """
+    """Main application syncer"""
     if version:
         sys.stdout.write(f"Version: {__version__}\n")
         return

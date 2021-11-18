@@ -1,5 +1,6 @@
 """PGSync views."""
-from typing import AnyStr, List
+from abc import ABC
+from typing import List
 
 from sqlalchemy.dialects.postgresql.base import PGDDLCompiler
 from sqlalchemy.ext import compiler
@@ -7,7 +8,7 @@ from sqlalchemy.schema import DDLElement
 from sqlalchemy.sql.selectable import Select
 
 
-class CreateView(DDLElement):
+class CreateView(DDLElement, ABC):
     def __init__(
         self,
         schema: str,
@@ -22,15 +23,12 @@ class CreateView(DDLElement):
 
 
 @compiler.compiles(CreateView)
-def compile_create_view(
-    element: CreateView, compiler: PGDDLCompiler, **kwargs
-) -> str:
-
+def compile_create_view(element: CreateView, compiler: PGDDLCompiler) -> str:
     statement: str = compiler.sql_compiler.process(
         element.selectable,
         literal_binds=True,
     )
-    materialized: bool = "MATERIALIZED" if element.materialized else ""
+    materialized: str = "MATERIALIZED" if element.materialized else ""
     return (
         f'CREATE {materialized} VIEW "{element.schema}"."{element.name}" AS '
         f"{statement}"
@@ -52,11 +50,9 @@ class DropView(DDLElement):
 
 
 @compiler.compiles(DropView)
-def compile_drop_view(
-    element: CreateView, compiler: PGDDLCompiler, **kwargs
-) -> str:
-    materialized: bool = "MATERIALIZED" if element.materialized else ""
-    cascade: bool = "CASCADE" if element.cascade else ""
+def compile_drop_view(element: CreateView) -> str:
+    materialized: str = "MATERIALIZED" if element.materialized else ""
+    cascade: str = "CASCADE" if element.cascade else ""
     return (
         f"DROP {materialized} VIEW IF EXISTS "
         f'"{element.schema}"."{element.name}" {cascade}'
@@ -72,9 +68,7 @@ class CreateIndex(DDLElement):
 
 
 @compiler.compiles(CreateIndex)
-def compile_create_index(
-    element: CreateView, compiler: PGDDLCompiler, **kwargs
-) -> str:
+def compile_create_index(element: CreateView) -> str:
     return (
         f"CREATE UNIQUE INDEX {element.name} ON "
         f'"{element.schema}"."{element.view}" ({", ".join(element.columns)})'
@@ -87,7 +81,5 @@ class DropIndex(DDLElement):
 
 
 @compiler.compiles(DropIndex)
-def compile_drop_index(
-    element: CreateView, compiler: PGDDLCompiler, **kwargs
-) -> str:
+def compile_drop_index(element: CreateView) -> str:
     return f"DROP INDEX IF EXISTS {element.name}"

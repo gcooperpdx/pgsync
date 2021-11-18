@@ -32,11 +32,11 @@ class RedisQueue(object):
             logger.exception(f"Redis server is not running: {e}")
             raise
 
-    def qsize(self):
+    def qsize(self) -> int:
         """Return the approximate size of the queue."""
         return self.__db.zcount(self.key, '-inf', '+inf')
 
-    def empty(self):
+    def empty(self) -> bool:
         """Return True if the queue is empty, False otherwise."""
         return self.qsize() == 0
 
@@ -80,7 +80,7 @@ class RedisQueue(object):
         """Equivalent to pop(False)."""
         return self.pop(False)
 
-    def _delete(self):
+    def _delete(self) -> None:
         logger.info(f"Deleting redis key: {self.key}")
         self.__db.delete(self.key)
 

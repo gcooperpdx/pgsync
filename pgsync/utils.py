@@ -119,9 +119,7 @@ def get_elasticsearch_url(
     password: Optional[str] = None,
     port: Optional[int] = None,
 ) -> str:
-    """
-    Return the URL to connect to Elasticsearch.
-    """
+    """Return the URL to connect to Elasticsearch."""
     scheme: str = scheme or ELASTICSEARCH_SCHEME
     host: str = host or ELASTICSEARCH_HOST
     port: str = port or ELASTICSEARCH_PORT
@@ -144,9 +142,7 @@ def get_postgres_url(
     password: Optional[str] = None,
     port: Optional[int] = None,
 ) -> str:
-    """
-    Return the URL to connect to Postgres.
-    """
+    """Return the URL to connect to Postgres."""
     user: str = user or PG_USER
     host: str = host or PG_HOST
     password: str = get_auth("PG_PASSWORD") or password or PG_PASSWORD

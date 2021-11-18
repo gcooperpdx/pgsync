@@ -46,7 +46,6 @@ try:
 except ImportError:
     pass
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -77,8 +76,8 @@ class Base(object):
         try:
             return self.fetchone(
                 sa.select([sa.column("setting")])
-                .select_from(sa.text("pg_settings"))
-                .where(sa.column("name") == column),
+                    .select_from(sa.text("pg_settings"))
+                    .where(sa.column("name") == column),
                 label="pg_settings",
             )[0]
         except (TypeError, IndexError):
@@ -97,22 +96,22 @@ class Base(object):
             return (
                 conn.execute(
                     sa.select([sa.column("usename")])
-                    .select_from(sa.text("pg_user"))
-                    .where(
+                        .select_from(sa.text("pg_user"))
+                        .where(
                         sa.and_(
                             *[
                                 sa.column("usename") == username,
                                 sa.or_(
                                     *[
-                                        (sa.column(permission) == True)
+                                        (sa.column(permission) is True)
                                         for permission in permissions
                                     ]
                                 ),
                             ]
                         )
                     )
-                    .with_only_columns([sa.func.COUNT()])
-                    .order_by(None)
+                        .with_only_columns([sa.func.COUNT()])
+                        .order_by(None)
                 ).scalar()
                 > 0
             )
@@ -144,7 +143,7 @@ class Base(object):
             model.append_column(sa.Column("xmin", sa.BigInteger))
             # support SQLQlchemy/Postgres 14 which somehow now reflects
             # the oid column
-            if not "oid" in [column.name for column in model.columns]:
+            if "oid" not in [column.name for column in model.columns]:
                 model.append_column(
                     sa.Column("oid", sa.dialects.postgresql.OID)
                 )
@@ -251,8 +250,8 @@ class Base(object):
         """
         return self.fetchall(
             sa.select(["*"])
-            .select_from(sa.text("PG_REPLICATION_SLOTS"))
-            .where(
+                .select_from(sa.text("PG_REPLICATION_SLOTS"))
+                .where(
                 sa.and_(
                     *[
                         sa.column("slot_name") == slot_name,
@@ -421,23 +420,23 @@ class Base(object):
                     ),
                 ]
             )
-            .join(
+                .join(
                 pg_attribute,
                 pg_attribute.c.attrelid == pg_index.c.indrelid,
             )
-            .join(
+                .join(
                 pg_class,
                 pg_class.c.oid == pg_index.c.indexrelid,
             )
-            .join(
+                .join(
                 alias,
                 alias.c.oid == pg_index.c.indrelid,
             )
-            .join(
+                .join(
                 pg_namespace,
                 pg_namespace.c.oid == pg_class.c.relnamespace,
             )
-            .where(
+                .where(
                 *[
                     pg_namespace.c.nspname.notin_(["pg_catalog", "pg_toast"]),
                     pg_index.c.indisprimary,
@@ -456,7 +455,7 @@ class Base(object):
                     pg_attribute.c.attnum == sa.any_(pg_index.c.indkey),
                 ]
             )
-            .group_by(pg_index.c.indrelid)
+                .group_by(pg_index.c.indrelid)
         )
 
     def _foreign_keys(self, schema: str, tables: List[str]):
@@ -487,7 +486,7 @@ class Base(object):
                     ).label("foreign_keys"),
                 ]
             )
-            .join(
+                .join(
                 key_column_usage,
                 sa.and_(
                     key_column_usage.c.constraint_name
@@ -497,7 +496,7 @@ class Base(object):
                     key_column_usage.c.table_schema == schema,
                 ),
             )
-            .join(
+                .join(
                 constraint_column_usage,
                 sa.and_(
                     constraint_column_usage.c.constraint_name
@@ -506,13 +505,13 @@ class Base(object):
                     == table_constraints.c.table_schema,
                 ),
             )
-            .where(
+                .where(
                 *[
                     table_constraints.c.table_name.in_(tables),
                     table_constraints.c.constraint_type == "FOREIGN KEY",
                 ]
             )
-            .group_by(table_constraints.c.table_name)
+                .group_by(table_constraints.c.table_name)
         )
 
     def create_view(self, schema, tables, user_defined_fkey_tables):
@@ -602,7 +601,7 @@ class Base(object):
                 sa.column("primary_keys"),
                 sa.column("foreign_keys"),
             )
-            .data(
+                .data(
                 [
                     (
                         table_name,
@@ -616,7 +615,7 @@ class Base(object):
                     for table_name, fields in rows.items()
                 ]
             )
-            .alias("t")
+                .alias("t")
         )
 
         logger.debug(f"Creating view: {schema}.{MATERIALIZED_VIEW}")
@@ -813,13 +812,13 @@ class Base(object):
             i = suffix.index("old-key:")
             if i > -1:
                 j = suffix.index("new-tuple:")
-                s = suffix[i + len("old-key:") : j]
+                s = suffix[i + len("old-key:"): j]
                 for key, value in _parse_logical_slot(s):
                     payload["old"][key] = value
 
             i = suffix.index("new-tuple:")
             if i > -1:
-                s = suffix[i + len("new-tuple:") :]
+                s = suffix[i + len("new-tuple:"):]
                 for key, value in _parse_logical_slot(s):
                     payload["new"][key] = value
         else:
@@ -918,7 +917,6 @@ def subtransactions(session):
 
 
 def _get_foreign_keys(model_a, model_b):
-
     foreign_keys = defaultdict(list)
 
     if model_a.foreign_keys:

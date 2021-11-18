@@ -45,7 +45,6 @@ RELATIONSHIP_FOREIGN_KEYS = [
     "parent",
 ]
 
-
 # tg_op
 UPDATE = "UPDATE"
 INSERT = "INSERT"
@@ -144,7 +143,6 @@ ELASTICSEARCH_MAPPING_PARAMETERS = [
     "term_vector",
 ]
 
-
 CONCAT_TRANSFORM = "concat"
 MAPPING_TRANSFORM = "mapping"
 MOVE_TRANSFORM = "move"
@@ -185,5 +183,5 @@ LOGICAL_SLOT_PREFIX = re.compile(
     r"table\s\"?(?P<schema>[\w-]+)\"?.\"?(?P<table>[\w-]+)\"?:\s(?P<tg_op>[A-Z]+):"
 )
 LOGICAL_SLOT_SUFFIX = re.compile(
-    '\s(?P<key>"?\w+"?)\[(?P<type>[\w\s]+)\]:(?P<value>[\w\'"\-]+)'
+    r'\s(?P<key>"?\w+"?)\[(?P<type>[\w\s]+)\]:(?P<value>[\w\'"\-]+)'
 )
